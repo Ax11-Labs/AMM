@@ -152,7 +152,7 @@ contract DepositTest is Test {
 
         console.log("lpX:", lpX);
         console.log("lpY:", lpY);
-        (, , , , , , lpX, lpY) = amm.PoolInfo(pool);
+        (, , , , , , , lpX, lpY) = amm.PoolInfo(pool);
         console.log("lpX:", lpX);
         console.log("lpY:", lpY);
     }

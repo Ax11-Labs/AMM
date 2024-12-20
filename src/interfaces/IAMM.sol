@@ -35,9 +35,10 @@ interface IAMM {
     struct Pool {
         address tokenX;
         address tokenY;
-        uint128 reserveX;
-        uint128 reserveY;
-        uint256 lastRatio; // 39 decimals
+        uint128 reserveX; // virtual
+        uint128 reserveY; // virtual
+        uint128 lastBalanceX; // real
+        uint128 lastBalanceY; //real
         uint128 lastPriceX; // 19 decimals
         uint256 totalLpX;
         uint256 totalLpY;
