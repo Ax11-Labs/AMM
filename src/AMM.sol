@@ -14,8 +14,7 @@ contract AMM is IAMM, ReentrancyGuard {
     mapping(uint256 => Pool) public PoolInfo; // pool information
     mapping(address => uint256) public TokenReserve; // store virtual balance
     mapping(address => mapping(uint256 => Position)) public balanceOf;
-    mapping(address => mapping(address => mapping(uint256 => Position)))
-        public allowance;
+    mapping(address => mapping(address => mapping(uint256 => Position))) public allowance;
 
     function name() public pure returns (string memory) {
         return "Ax11 Liquidity";
@@ -30,10 +29,11 @@ contract AMM is IAMM, ReentrancyGuard {
     }
 
     /// @notice get the pool id without storage reading
-    function getPool(
-        address token0,
-        address token1
-    ) public pure returns (uint256 pool, address tokenX, address tokenY) {
+    function getPool(address token0, address token1)
+        public
+        pure
+        returns (uint256 pool, address tokenX, address tokenY)
+    {
         if (token0 < token1) {
             tokenX = token0;
             tokenY = token1;
@@ -46,55 +46,37 @@ contract AMM is IAMM, ReentrancyGuard {
         pool = uint256(keccak256(abi.encodePacked(tokenX, tokenY)));
     }
 
-    function getPrice(
-        uint256 pool
-    ) public view returns (uint256 priceX, uint256 priceY) {
+    function getPrice(uint256 pool) public view returns (uint256 priceX, uint256 priceY) {
         (uint256 realReserveX, uint256 realReserveY) = getReserve(pool);
         (priceX, priceY) = _getPrice(pool, realReserveX, realReserveY);
     }
 
-    function _getPrice(
-        uint256 pool,
-        uint256 realReserveX,
-        uint256 realReserveY
-    ) private view returns (uint256 priceX, uint256 priceY) {
+    function _getPrice(uint256 pool, uint256 realReserveX, uint256 realReserveY)
+        private
+        view
+        returns (uint256 priceX, uint256 priceY)
+    {
         Pool storage _pool = PoolInfo[pool];
-        priceX = Math.fullMulDiv(
-            realReserveY * _pool.lastBalanceX,
-            _pool.lastPriceX,
-            realReserveX * _pool.lastBalanceY
-        );
+        priceX = Math.fullMulDiv(realReserveY * _pool.lastBalanceX, _pool.lastPriceX, realReserveX * _pool.lastBalanceY);
         if (priceX == 0) return (0, 0);
         priceY = 1e38 / priceX;
     }
 
-    function getReserve(
-        uint256 pool
-    ) public view returns (uint256 realReserveX, uint256 realReserveY) {
+    function getReserve(uint256 pool) public view returns (uint256 realReserveX, uint256 realReserveY) {
         Pool storage _pool = PoolInfo[pool];
         address tokenX = _pool.tokenX;
         address tokenY = _pool.tokenY;
-        uint256 balanceX = tokenX == address(0)
-            ? TokenReserve[tokenX]
-            : _getBalance(tokenX);
+        uint256 balanceX = tokenX == address(0) ? TokenReserve[tokenX] : _getBalance(tokenX);
         uint256 balanceY = _getBalance(tokenY);
-        realReserveX = _getReserve(
-            _pool.reserveX,
-            TokenReserve[tokenX],
-            balanceX
-        );
-        realReserveY = _getReserve(
-            _pool.reserveY,
-            TokenReserve[tokenY],
-            balanceY
-        );
+        realReserveX = _getReserve(_pool.reserveX, TokenReserve[tokenX], balanceX);
+        realReserveY = _getReserve(_pool.reserveY, TokenReserve[tokenY], balanceY);
     }
 
-    function _getReserve(
-        uint256 reserve,
-        uint256 totalReserve,
-        uint256 balance
-    ) private pure returns (uint256 realReserve) {
+    function _getReserve(uint256 reserve, uint256 totalReserve, uint256 balance)
+        private
+        pure
+        returns (uint256 realReserve)
+    {
         if (totalReserve == 0) return 0;
         realReserve = (balance * reserve) / totalReserve; // get  real reserve, division zero is fine
     }
@@ -103,17 +85,9 @@ contract AMM is IAMM, ReentrancyGuard {
         return IERC20(token).balanceOf(address(this));
     }
 
-    function _slippageCheck(
-        uint256 realPrice,
-        uint256 targetPrice,
-        uint256 slippage
-    ) private pure {
+    function _slippageCheck(uint256 realPrice, uint256 targetPrice, uint256 slippage) private pure {
         require(
-            (
-                realPrice > targetPrice
-                    ? realPrice - targetPrice
-                    : targetPrice - realPrice
-            ) < slippage + 1,
+            (realPrice > targetPrice ? realPrice - targetPrice : targetPrice - realPrice) < slippage + 1,
             INVALID_PRICE()
         );
     }
@@ -130,12 +104,7 @@ contract AMM is IAMM, ReentrancyGuard {
         address toX, // LPx recipient
         address toY, // LPy recipient
         uint256 deadline
-    )
-        external
-        payable
-        nonReentrant
-        returns (uint256 pool, uint256 liquidityX, uint256 liquidityY)
-    {
+    ) external payable nonReentrant returns (uint256 pool, uint256 liquidityX, uint256 liquidityY) {
         require(deadline > block.timestamp - 1, EXPIRED());
         require(priceX != 0 && priceX - 1 < type(uint128).max, INVALID_PRICE());
         (pool, token0, token1) = getPool(token0, token1); // sort
@@ -145,21 +114,11 @@ contract AMM is IAMM, ReentrancyGuard {
         uint256 reserve1 = _pool.reserveY;
         uint256 tokenReserve0 = TokenReserve[token0];
         uint256 tokenReserve1 = TokenReserve[token1];
-        uint256 balanceToken0 = token0 == address(0)
-            ? tokenReserve0
-            : _getBalance(token0);
+        uint256 balanceToken0 = token0 == address(0) ? tokenReserve0 : _getBalance(token0);
 
         uint256 balanceToken1 = _getBalance(token1);
-        uint256 realReserveX = _getReserve(
-            reserve0,
-            tokenReserve0,
-            balanceToken0
-        );
-        uint256 realReserveY = _getReserve(
-            reserve1,
-            tokenReserve1,
-            balanceToken1
-        );
+        uint256 realReserveX = _getReserve(reserve0, tokenReserve0, balanceToken0);
+        uint256 realReserveY = _getReserve(reserve1, tokenReserve1, balanceToken1);
 
         //if the pool doesn't exist, create pool
         if (_pool.tokenY == address(0)) {
@@ -167,30 +126,16 @@ contract AMM is IAMM, ReentrancyGuard {
             _pool.tokenY = token1;
             deadline = priceX; // reuse deadline as current priceX
         } else {
-            (deadline, ) = _getPrice(pool, realReserveX, realReserveY); // reuse deadline as current priceX
+            (deadline,) = _getPrice(pool, realReserveX, realReserveY); // reuse deadline as current priceX
             _slippageCheck(deadline, priceX, slippage);
         }
 
         // Handle deposits for both tokens
-        (liquidityX, amount0) = _deposit(
-            token0,
-            amount0,
-            reserve0,
-            tokenReserve0,
-            balanceToken0,
-            _pool.totalLpX,
-            deadline
-        );
+        (liquidityX, amount0) =
+            _deposit(token0, amount0, reserve0, tokenReserve0, balanceToken0, _pool.totalLpX, deadline);
 
-        (liquidityY, amount1) = _deposit(
-            token1,
-            amount1,
-            reserve1,
-            tokenReserve1,
-            balanceToken1,
-            _pool.totalLpY,
-            (1e38 / deadline)
-        );
+        (liquidityY, amount1) =
+            _deposit(token1, amount1, reserve1, tokenReserve1, balanceToken1, _pool.totalLpY, (1e38 / deadline));
 
         _mint(toX, toY, pool, liquidityX, liquidityY);
 
@@ -217,34 +162,19 @@ contract AMM is IAMM, ReentrancyGuard {
         if (amount == 0) return (0, 0);
         if (token != address(0)) {
             //ERC20
-            TransferHelper.safeTransferFrom(
-                IERC20(token),
-                msg.sender,
-                address(this),
-                amount
-            );
+            TransferHelper.safeTransferFrom(IERC20(token), msg.sender, address(this), amount);
             uint256 realAmount = _getBalance(token) - totalBalance;
             // Scale reserve amount based on existing totalReserve and totalBalance
-            reserveAmount = (totalBalance != 0)
-                ? (realAmount * totalReserve) / totalBalance
-                : realAmount;
+            reserveAmount = (totalBalance != 0) ? (realAmount * totalReserve) / totalBalance : realAmount;
         } else {
             //native
             reserveAmount = address(this).balance - totalReserve;
         }
 
-        liquidity = totalLp != 0
-            ? (reserveAmount * totalLp) / poolReserve
-            : (reserveAmount * Math.sqrt(priceX));
+        liquidity = totalLp != 0 ? (reserveAmount * totalLp) / poolReserve : (reserveAmount * Math.sqrt(priceX));
     }
 
-    function _mint(
-        address toX,
-        address toY,
-        uint256 pool,
-        uint256 valueX,
-        uint256 valueY
-    ) private {
+    function _mint(address toX, address toY, uint256 pool, uint256 valueX, uint256 valueY) private {
         Pool storage _pool = PoolInfo[pool];
         uint256 MINIMUM_LIQUIDITY = 100000;
         if (valueX != 0) {
@@ -272,13 +202,7 @@ contract AMM is IAMM, ReentrancyGuard {
         }
     }
 
-    function transfer(
-        uint256 id,
-        address toX,
-        address toY,
-        uint256 amount0,
-        uint256 amount1
-    ) public returns (bool) {
+    function transfer(uint256 id, address toX, address toY, uint256 amount0, uint256 amount1) public returns (bool) {
         address sender = msg.sender;
         if (amount0 != 0) {
             balanceOf[sender][id].liquidityX -= amount0;
@@ -327,13 +251,10 @@ contract AMM is IAMM, ReentrancyGuard {
         return true;
     }
 
-    function approve(
-        uint256 id,
-        address spenderX,
-        address spenderY,
-        uint256 amount0,
-        uint256 amount1
-    ) public returns (bool) {
+    function approve(uint256 id, address spenderX, address spenderY, uint256 amount0, uint256 amount1)
+        public
+        returns (bool)
+    {
         address sender = msg.sender;
         if (amount0 != 0) {
             allowance[sender][spenderX][id].liquidityX = amount0;
@@ -357,12 +278,7 @@ contract AMM is IAMM, ReentrancyGuard {
         address toX, // tokenX recipient
         address toY, // tokenY recipient
         uint256 deadline
-    )
-        external
-        payable
-        nonReentrant
-        returns (uint256 pool, uint256 amountX, uint256 amountY)
-    {
+    ) external payable nonReentrant returns (uint256 pool, uint256 amountX, uint256 amountY) {
         require(deadline > block.timestamp - 1, EXPIRED());
         require(priceX != 0 && priceX - 1 < type(uint128).max, INVALID_PRICE());
         (pool, token0, token1) = getPool(token0, token1); // sort

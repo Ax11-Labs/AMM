@@ -15,16 +15,8 @@ library TransferHelper {
      * @dev Transfer `value` amount of `token` from `from` to `to`, spending the approval given by `from` to the
      * calling contract. If `token` returns no value, non-reverting calls are assumed to be successful.
      */
-    function safeTransferFrom(
-        IERC20 token,
-        address from,
-        address to,
-        uint256 value
-    ) internal {
-        _callOptionalReturn(
-            token,
-            abi.encodeCall(token.transferFrom, (from, to, value))
-        );
+    function safeTransferFrom(IERC20 token, address from, address to, uint256 value) internal {
+        _callOptionalReturn(token, abi.encodeCall(token.transferFrom, (from, to, value)));
     }
 
     /**
@@ -39,15 +31,7 @@ library TransferHelper {
         uint256 returnSize;
         uint256 returnValue;
         assembly ("memory-safe") {
-            let success := call(
-                gas(),
-                token,
-                0,
-                add(data, 0x20),
-                mload(data),
-                0,
-                0x20
-            )
+            let success := call(gas(), token, 0, add(data, 0x20), mload(data), 0, 0x20)
             // bubble errors
             if iszero(success) {
                 let ptr := mload(0x40)
@@ -58,9 +42,7 @@ library TransferHelper {
             returnValue := mload(0)
         }
 
-        if (
-            returnSize == 0 ? address(token).code.length == 0 : returnValue != 1
-        ) {
+        if (returnSize == 0 ? address(token).code.length == 0 : returnValue != 1) {
             revert SafeERC20FailedOperation(address(token));
         }
     }

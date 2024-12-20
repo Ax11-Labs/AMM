@@ -16,18 +16,9 @@ contract MockERC20 {
     mapping(address => mapping(address => uint256)) private allowances;
 
     event Transfer(address indexed from, address indexed to, uint256 value);
-    event Approval(
-        address indexed owner,
-        address indexed spender,
-        uint256 value
-    );
+    event Approval(address indexed owner, address indexed spender, uint256 value);
 
-    constructor(
-        string memory _name,
-        string memory _symbol,
-        uint8 _decimals,
-        uint256 _initialSupply
-    ) {
+    constructor(string memory _name, string memory _symbol, uint8 _decimals, uint256 _initialSupply) {
         name = _name;
         symbol = _symbol;
         decimals = _decimals;
@@ -40,10 +31,7 @@ contract MockERC20 {
     }
 
     function transfer(address recipient, uint256 amount) public returns (bool) {
-        require(
-            balances[msg.sender] >= amount,
-            "ERC20: transfer amount exceeds balance"
-        );
+        require(balances[msg.sender] >= amount, "ERC20: transfer amount exceeds balance");
         _transfer(msg.sender, recipient, amount);
         return true;
     }
@@ -54,36 +42,19 @@ contract MockERC20 {
         return true;
     }
 
-    function transferFrom(
-        address sender,
-        address recipient,
-        uint256 amount
-    ) public returns (bool) {
-        require(
-            balances[sender] >= amount,
-            "ERC20: transfer amount exceeds balance"
-        );
-        require(
-            allowances[sender][msg.sender] >= amount,
-            "ERC20: transfer amount exceeds allowance"
-        );
+    function transferFrom(address sender, address recipient, uint256 amount) public returns (bool) {
+        require(balances[sender] >= amount, "ERC20: transfer amount exceeds balance");
+        require(allowances[sender][msg.sender] >= amount, "ERC20: transfer amount exceeds allowance");
         _transfer(sender, recipient, amount);
         allowances[sender][msg.sender] -= amount;
         return true;
     }
 
-    function allowance(
-        address owner,
-        address spender
-    ) public view returns (uint256) {
+    function allowance(address owner, address spender) public view returns (uint256) {
         return allowances[owner][spender];
     }
 
-    function _transfer(
-        address sender,
-        address recipient,
-        uint256 amount
-    ) internal {
+    function _transfer(address sender, address recipient, uint256 amount) internal {
         balances[sender] -= amount;
         balances[recipient] += amount;
         emit Transfer(sender, recipient, amount);
@@ -144,15 +115,15 @@ contract DepositTest is Test {
 
         //  Verify LP tokens were minted
         uint256 pool;
-        (pool, , ) = amm.getPool(address(0), address(usdc));
+        (pool,,) = amm.getPool(address(0), address(usdc));
         uint256 lpX;
         uint256 lpY;
-        (lpX, ) = amm.balanceOf(lpRecipientX, pool); // Replace `0` with the pool ID
+        (lpX,) = amm.balanceOf(lpRecipientX, pool); // Replace `0` with the pool ID
         (, lpY) = amm.balanceOf(lpRecipientY, pool); // Replace `0` with the pool ID
 
         console.log("lpX:", lpX);
         console.log("lpY:", lpY);
-        (, , , , , , , lpX, lpY) = amm.PoolInfo(pool);
+        (,,,,,,, lpX, lpY) = amm.PoolInfo(pool);
         console.log("lpX:", lpX);
         console.log("lpY:", lpY);
     }

@@ -62,11 +62,7 @@ library Math {
     /// @dev Calculates `floor(x * y / d)` with full precision.
     /// Throws if result overflows a uint256 or when `d` is zero.
     /// Credit to Remco Bloemen under MIT license: https://2π.com/21/muldiv
-    function fullMulDiv(
-        uint256 x,
-        uint256 y,
-        uint256 d
-    ) internal pure returns (uint256 z) {
+    function fullMulDiv(uint256 x, uint256 y, uint256 d) internal pure returns (uint256 z) {
         /// @solidity memory-safe-assembly
         assembly {
             // 512-bit multiply `[p1 p0] = x * y`.
@@ -77,11 +73,7 @@ library Math {
 
             // Temporarily use `z` as `p0` to save gas.
             z := mul(x, y) // Lower 256 bits of `x * y`.
-            for {
-
-            } 1 {
-
-            } {
+            for {} 1 {} {
                 // If overflows.
                 if iszero(mul(or(iszero(x), eq(div(z, x), y)), d)) {
                     let mm := mulmod(x, y, not(0))
@@ -113,16 +105,14 @@ library Math {
                     inv := mul(inv, sub(2, mul(d, inv))) // inverse mod 2**32
                     inv := mul(inv, sub(2, mul(d, inv))) // inverse mod 2**64
                     inv := mul(inv, sub(2, mul(d, inv))) // inverse mod 2**128
-                    z := mul(
-                        // Divide [p1 p0] by the factors of two.
-                        // Shift in bits from `p1` into `p0`. For this we need
-                        // to flip `t` such that it is `2**256 / t`.
-                        or(
-                            mul(sub(p1, gt(r, z)), add(div(sub(0, t), t), 1)),
-                            div(sub(z, r), t)
-                        ),
-                        mul(sub(2, mul(d, inv)), inv) // inverse mod 2**256
-                    )
+                    z :=
+                        mul(
+                            // Divide [p1 p0] by the factors of two.
+                            // Shift in bits from `p1` into `p0`. For this we need
+                            // to flip `t` such that it is `2**256 / t`.
+                            or(mul(sub(p1, gt(r, z)), add(div(sub(0, t), t), 1)), div(sub(z, r), t)),
+                            mul(sub(2, mul(d, inv)), inv) // inverse mod 2**256
+                        )
                     break
                 }
                 z := div(z, d)
