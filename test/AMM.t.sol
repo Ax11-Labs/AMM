@@ -112,7 +112,7 @@ contract DepositTest is Test {
     function testDepositETHUSDC() public {
         uint256 amountETH = 1 ether; // 1 ETH
         uint256 amountUSDC = 1000e6; // 1,000 USDC
-        uint256 priceX = 1e19; // Approximate price of ETH/USDC with 19 decimals
+        uint256 priceX = 4195 * (1e19); // Approximate price of ETH/USDC with 19 decimals
         uint256 slippage = 5e16; // 0.05 (5%)
         uint256 deadline = block.timestamp + 1 hours;
 
@@ -147,8 +147,8 @@ contract DepositTest is Test {
         (pool, , ) = amm.getPool(address(0), address(usdc));
         uint256 lpX;
         uint256 lpY;
-        (lpX, ) = amm.Position(lpRecipientX, pool); // Replace `0` with the pool ID
-        (, lpY) = amm.Position(lpRecipientY, pool); // Replace `0` with the pool ID
+        (lpX, ) = amm.balanceOf(lpRecipientX, pool); // Replace `0` with the pool ID
+        (, lpY) = amm.balanceOf(lpRecipientY, pool); // Replace `0` with the pool ID
 
         console.log("lpX:", lpX);
         console.log("lpY:", lpY);

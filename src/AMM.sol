@@ -12,7 +12,9 @@ contract AMM is IAMM {
 
     mapping(uint256 => Pool) public PoolInfo; // pool information
     mapping(address => uint256) public TokenReserve; // store virtual balance
-    mapping(address => mapping(uint256 => Individual)) public Position;
+    mapping(address => mapping(uint256 => Position)) public balanceOf;
+    mapping(address => mapping(address => mapping(uint256 => Position)))
+        public allowance;
 
     function name() public pure returns (string memory) {
         return "Ax11 Liquidity";
@@ -62,7 +64,7 @@ contract AMM is IAMM {
             _pool.reserveX) / oldBalX; // get new reserveX, division zero is fine
         uint256 newReserveY = (IERC20(tokenY).balanceOf(address(this)) *
             _pool.reserveY) / oldBalY; // get new reserveY, division zero is fine
-        ratio = (newReserveY * 1e19) / newReserveX;
+        ratio = (newReserveY * 1e39) / newReserveX;
     }
 
     /// @notice This function facilitates both pool creation and liquidity deposit.
@@ -155,21 +157,18 @@ contract AMM is IAMM {
             );
             uint256 realAmount = IERC20(token).balanceOf(address(this)) -
                 initialBalance;
-            if (initialBalance == 0) {
-                reserveAmount = realAmount;
-            } else {
-                reserveAmount = (realAmount * totalReserve) / initialBalance; // Scale based on existing totalReserve
-            }
+            // Scale reserve amount based on existing totalReserve and initialBalance
+            reserveAmount = (initialBalance != 0)
+                ? (realAmount * totalReserve) / initialBalance
+                : realAmount;
         } else {
             //native
             reserveAmount = address(this).balance - totalReserve;
         }
 
-        if (totalLp != 0) {
-            liquidity = (reserveAmount * totalLp) / reserve;
-        } else {
-            liquidity = (reserveAmount * Math.sqrt(priceX));
-        }
+        liquidity = totalLp != 0
+            ? (reserveAmount * totalLp) / reserve
+            : (reserveAmount * Math.sqrt(priceX));
     }
 
     function _mint(
@@ -185,11 +184,11 @@ contract AMM is IAMM {
             uint256 _totalLpX = _pool.totalLpX;
             _pool.totalLpX += valueX;
             if (_totalLpX == 0) {
-                Position[address(0)][pool].liquidityX = MINIMUM_LIQUIDITY;
+                balanceOf[address(0)][pool].liquidityX = MINIMUM_LIQUIDITY;
                 valueX -= MINIMUM_LIQUIDITY;
             }
             unchecked {
-                Position[toX][pool].liquidityX += valueX;
+                balanceOf[toX][pool].liquidityX += valueX;
             }
         }
 
@@ -197,35 +196,87 @@ contract AMM is IAMM {
             uint256 _totalLpY = _pool.totalLpY;
             _pool.totalLpY += valueY;
             if (_totalLpY == 0) {
-                Position[address(0)][pool].liquidityY = MINIMUM_LIQUIDITY;
+                balanceOf[address(0)][pool].liquidityY = MINIMUM_LIQUIDITY;
                 valueY -= MINIMUM_LIQUIDITY;
             }
             unchecked {
-                Position[toY][pool].liquidityY += valueY;
+                balanceOf[toY][pool].liquidityY += valueY;
             }
         }
     }
 
-    // function withdraw(
-    //     IERC20 tokenX,
-    //     IERC20 tokenY,
-    //     uint256 amountLPX,
-    //     uint256 amountLPY,
-    //     uint128 priceX, // please input Q64.64 price
-    //     uint256 slippage, // price bound to dictate min,max
-    //     address toX,
-    //     address toY,
-    //     uint256 deadline
-    // ) external returns (uint256 amountX, uint256 amountY) {
-    //     require(deadline > block.timestamp - 1, "EXPIRED");
-    //     require(priceX != 0, "INVALID_PRICE");
+    function transfer(
+        uint256 id,
+        address toX,
+        address toY,
+        uint256 amount0,
+        uint256 amount1
+    ) public returns (bool) {
+        address sender = msg.sender;
+        if (amount0 != 0) {
+            balanceOf[sender][id].liquidityX -= amount0;
+            unchecked {
+                balanceOf[toX][id].liquidityX += amount0;
+            }
+            emit Transfer(sender, toX, id, true, amount0);
+        }
+        if (amount1 != 0) {
+            balanceOf[sender][id].liquidityY -= amount1;
+            unchecked {
+                balanceOf[toX][id].liquidityX += amount0;
+            }
+            emit Transfer(sender, toY, id, false, amount1);
+        }
+        return true;
+    }
 
-    //     Pool storage _pool = PoolInfo[getPool(tokenX, tokenY)];
+    function transferFrom(
+        uint256 id,
+        address fromX,
+        address fromY,
+        address toX,
+        address toY,
+        uint256 amount0,
+        uint256 amount1
+    ) public returns (bool) {
+        uint256 allowedX = allowance[fromX][toX][id].liquidityX;
+        uint256 allowedY = allowance[fromY][toY][id].liquidityY;
+        if (allowedX != type(uint256).max) {
+            allowance[fromX][toX][id].liquidityX = allowedX - amount0;
+            balanceOf[fromX][id].liquidityX -= amount0;
+            unchecked {
+                balanceOf[toX][id].liquidityX += amount0;
+            }
+            emit Transfer(fromX, toX, id, true, amount0);
+        }
+        if (allowedY != type(uint256).max) {
+            allowance[fromY][toY][id].liquidityY = allowedY - amount1;
+            balanceOf[fromY][id].liquidityY -= amount1;
+            unchecked {
+                balanceOf[toY][id].liquidityY += amount1;
+            }
+            emit Transfer(fromY, toY, id, false, amount1);
+        }
+        return true;
+    }
 
-    //     require(
-    //         address(tokenX) != address(0) && address(tokenY) != address(0),
-    //         "UNINITIALIZED"
-    //     );
-    //     // deadline = _pool.price
-    // }
+    function approve(
+        uint256 id,
+        address spenderX,
+        address spenderY,
+        uint256 amount0,
+        uint256 amount1
+    ) public returns (bool) {
+        address sender = msg.sender;
+        if (amount0 != 0) {
+            allowance[sender][spenderX][id].liquidityX = amount0;
+            emit Approval(sender, spenderX, id, amount0);
+        }
+
+        if (amount1 != 0) {
+            allowance[sender][spenderY][id].liquidityY = amount1;
+            emit Approval(sender, spenderY, id, amount1);
+        }
+        return true;
+    }
 }

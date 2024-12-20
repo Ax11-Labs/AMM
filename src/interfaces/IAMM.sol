@@ -8,6 +8,7 @@ interface IAMM {
     error INVALID_PRICE();
     error OVERFLOW();
     error EXPIRED();
+    error UNINITIALIZED();
 
     event Deposit(
         address indexed user,
@@ -16,18 +17,33 @@ interface IAMM {
         uint256 liquidityY
     );
 
+    event Approval(
+        address indexed owner,
+        address indexed spender,
+        uint256 indexed id,
+        uint256 amount
+    );
+
+    event Transfer(
+        address indexed from,
+        address indexed to,
+        uint256 indexed id,
+        bool isX,
+        uint256 amount
+    );
+
     struct Pool {
         address tokenX;
         address tokenY;
         uint128 reserveX;
         uint128 reserveY;
-        uint256 lastRatio; // 19 decimals
+        uint256 lastRatio; // 39 decimals
         uint128 lastPriceX; // 19 decimals
         uint256 totalLpX;
         uint256 totalLpY;
     }
 
-    struct Individual {
+    struct Position {
         uint256 liquidityX;
         uint256 liquidityY;
     }
