@@ -4,7 +4,6 @@ pragma solidity 0.8.28;
 import {IAMM} from "./interfaces/IAMM.sol";
 import {IERC20} from "./interfaces/IERC20.sol";
 import {TransferHelper} from "./libraries/TransferHelper.sol";
-// import {LPTOKEN} from "./LpToken.sol";
 import {Math} from "./libraries/Math.sol";
 import {ReentrancyGuard} from "./abstracts/ReentrancyGuard.sol";
 
@@ -491,5 +490,79 @@ contract AMM is IAMM, ReentrancyGuard {
             realAmount = reserveAmount;
             TransferHelper.safeTransferETH(recipeint, realAmount);
         }
+    }
+
+    function swapExactInput(
+        address tokenIn,
+        address tokenOut,
+        uint256 amountIn,
+        uint256 amountOutMin,
+        address to,
+        uint256 deadline
+    ) external payable returns (bool) {
+        _checkValue(block.timestamp, deadline); // check deadline
+        require(amountOutMin != 0, INSUFFICIENT_AMOUNT());
+
+        (uint256 pool, address token0, address token1) = getPool(
+            tokenIn,
+            tokenOut
+        );
+        Pool storage _pool = PoolInfo[pool];
+        require(_pool.tokenY != address(0), UNINITIALIZED());
+        uint256 reserve0 = _pool.reserveX;
+        uint256 reserve1 = _pool.reserveY;
+        uint256 tokenReserve0 = TokenReserve[token0];
+        uint256 tokenReserve1 = TokenReserve[token1];
+        uint256 balanceToken0 = token0 == address(0)
+            ? tokenReserve0
+            : _getBalance(token0);
+
+        uint256 balanceToken1 = _getBalance(token1);
+        uint256 realReserveX = _getReserve(
+            reserve0,
+            tokenReserve0,
+            balanceToken0
+        );
+        uint256 realReserveY = _getReserve(
+            reserve1,
+            tokenReserve1,
+            balanceToken1
+        );
+        (deadline, ) = _getPrice(pool, realReserveX, realReserveY); // reuse deadline as current priceX
+
+        bool token0Out = tokenIn == token0;
+
+        if (token0Out) {
+            TransferHelper.safeTransferFrom(
+                token1,
+                msg.sender,
+                address(this),
+                amountIn
+            );
+
+            uint256 newRealReserveY = _getBalance(token1);
+            uint256 newRealReserveX = (realReserveX * realReserveY) /
+                newRealReserveY;
+
+            uint256 realAmountOut = realReserveX - newRealReserveX;
+            require(realAmountOut >= amountOutMin, SLIPPAGE_EXCEEDED());
+            TransferHelper.safeTransfer(token0, to, realAmountOut);
+        } else {
+            TransferHelper.safeTransferFrom(
+                token0,
+                msg.sender,
+                address(this),
+                amountIn
+            );
+
+            uint256 newRealReserveX = _getBalance(token0);
+            uint256 newRealReserveY = (realReserveX * realReserveY) /
+                newRealReserveX;
+
+            uint256 realAmountOut = newRealReserveY - realReserveY;
+            require(realAmountOut >= amountOutMin, SLIPPAGE_EXCEEDED());
+            TransferHelper.safeTransfer(token1, to, realAmountOut);
+        }
+        return true;
     }
 }

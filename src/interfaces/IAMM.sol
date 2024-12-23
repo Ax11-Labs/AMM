@@ -10,14 +10,37 @@ interface IAMM {
     error EXPIRED();
     error UNINITIALIZED();
     error INVALID_VALUE();
+    error INSUFFICIENT_AMOUNT();
+    error SLIPPAGE_EXCEEDED();
 
-    event Deposit(address indexed user, uint256 indexed pool, uint256 liquidityX, uint256 liquidityY);
+    event Deposit(
+        address indexed user,
+        uint256 indexed pool,
+        uint256 liquidityX,
+        uint256 liquidityY
+    );
 
-    event Withdrawal(address indexed user, uint256 indexed pool, uint256 amountX, uint256 amountY);
+    event Withdrawal(
+        address indexed user,
+        uint256 indexed pool,
+        uint256 amountX,
+        uint256 amountY
+    );
 
-    event Approval(address indexed owner, address indexed spender, uint256 indexed id, uint256 amount);
+    event Approval(
+        address indexed owner,
+        address indexed spender,
+        uint256 indexed id,
+        uint256 amount
+    );
 
-    event Transfer(address indexed from, address indexed to, uint256 indexed id, bool isX, uint256 amount);
+    event Transfer(
+        address indexed from,
+        address indexed to,
+        uint256 indexed id,
+        bool isX,
+        uint256 amount
+    );
 
     struct Pool {
         address tokenX;
