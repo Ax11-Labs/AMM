@@ -152,7 +152,6 @@ contract AMM is IAMM, ReentrancyGuard {
         uint256 balanceToken0 = token0 == address(0)
             ? tokenReserve0
             : _getBalance(token0);
-
         uint256 balanceToken1 = _getBalance(token1);
         uint256 realReserveX = _getReserve(
             reserve0,
@@ -190,6 +189,7 @@ contract AMM is IAMM, ReentrancyGuard {
             balanceToken0,
             totalLPX
         );
+
         _pool.lastBalanceX = _safeCast128(realReserveX + slippage);
 
         // reuse variable `slippage` to handle real input amount
@@ -501,22 +501,22 @@ contract AMM is IAMM, ReentrancyGuard {
         uint256 deadline
     ) external payable returns (bool) {
         _checkValue(block.timestamp, deadline); // check deadline
-        require(amountOutMin != 0, INSUFFICIENT_AMOUNT());
-
+        require(amountIn != 0, INSUFFICIENT_AMOUNT());
         (uint256 pool, address token0, address token1) = getPool(
             tokenIn,
             tokenOut
         );
+
         Pool storage _pool = PoolInfo[pool];
-        require(_pool.tokenY != address(0), UNINITIALIZED());
+        require(_pool.tokenY != address(0), UNINITIALIZED()); // pool must exist
+
         uint256 reserve0 = _pool.reserveX;
         uint256 reserve1 = _pool.reserveY;
         uint256 tokenReserve0 = TokenReserve[token0];
         uint256 tokenReserve1 = TokenReserve[token1];
         uint256 balanceToken0 = token0 == address(0)
             ? tokenReserve0
-            : _getBalance(token0);
-
+            : _getBalance(token0); // If native, use TokenReserve; else ERC20 balance
         uint256 balanceToken1 = _getBalance(token1);
         uint256 realReserveX = _getReserve(
             reserve0,
@@ -528,11 +528,14 @@ contract AMM is IAMM, ReentrancyGuard {
             tokenReserve1,
             balanceToken1
         );
-        (deadline, ) = _getPrice(pool, realReserveX, realReserveY); // reuse deadline as current priceX
+        (deadline, ) = _getPrice(pool, realReserveX, realReserveY);
 
-        bool token0Out = tokenIn == token0;
+        uint256 newRealBalanceX;
+        uint256 newRealBalanceY;
+        uint256 reserveDelta;
+        uint256 amountDelta;
 
-        if (token0Out) {
+        if (tokenOut == token0) {
             TransferHelper.safeTransferFrom(
                 token1,
                 msg.sender,
@@ -540,13 +543,26 @@ contract AMM is IAMM, ReentrancyGuard {
                 amountIn
             );
 
-            uint256 newRealReserveY = _getBalance(token1);
-            uint256 newRealReserveX = (realReserveX * realReserveY) /
-                newRealReserveY;
+            // How many token0 actually arrived?
+            newRealBalanceY = _getBalance(token1);
+            reserveDelta =
+                ((newRealBalanceY - balanceToken1) * tokenReserve1) /
+                balanceToken1;
+            TokenReserve[token1] = tokenReserve1 + reserveDelta;
+            _pool.reserveY = _safeCast128(reserve1 + reserveDelta);
 
-            uint256 realAmountOut = realReserveX - newRealReserveX;
-            require(realAmountOut >= amountOutMin, SLIPPAGE_EXCEEDED());
-            TransferHelper.safeTransfer(token0, to, realAmountOut);
+            // Caluculate token out
+            newRealBalanceX = (realReserveX * realReserveY) / newRealBalanceY;
+            amountDelta = realReserveX - newRealBalanceX;
+            require(
+                amountDelta != 0 && amountDelta + 1 > amountOutMin,
+                SWAP_ERROR()
+            );
+            TransferHelper.safeTransfer(token0, to, amountDelta);
+            reserveDelta = (amountDelta * tokenReserve0) / balanceToken0;
+            TokenReserve[token0] = tokenReserve0 - reserveDelta;
+            _pool.reserveX = _safeCast128(reserve0 - reserveDelta);
+            emit Swap(msg.sender, pool, true, amountIn, amountDelta);
         } else {
             TransferHelper.safeTransferFrom(
                 token0,
@@ -554,15 +570,39 @@ contract AMM is IAMM, ReentrancyGuard {
                 address(this),
                 amountIn
             );
+            newRealBalanceX = _getBalance(token0);
+            reserveDelta =
+                ((newRealBalanceX - balanceToken0) * tokenReserve0) /
+                balanceToken0;
+            TokenReserve[token0] = tokenReserve0 + reserveDelta;
+            _pool.reserveX = _safeCast128(reserve0 + reserveDelta);
 
-            uint256 newRealReserveX = _getBalance(token0);
-            uint256 newRealReserveY = (realReserveX * realReserveY) /
-                newRealReserveX;
-
-            uint256 realAmountOut = newRealReserveY - realReserveY;
-            require(realAmountOut >= amountOutMin, SLIPPAGE_EXCEEDED());
-            TransferHelper.safeTransfer(token1, to, realAmountOut);
+            // Caluculate token out
+            newRealBalanceY = (realReserveX * realReserveY) / newRealBalanceX;
+            amountDelta = realReserveY - newRealBalanceY;
+            require(
+                amountDelta != 0 && amountDelta + 1 > amountOutMin,
+                SWAP_ERROR()
+            );
+            TransferHelper.safeTransfer(token1, to, amountDelta);
+            reserveDelta = (amountDelta * tokenReserve1) / balanceToken1;
+            TokenReserve[token1] = tokenReserve1 - reserveDelta;
+            _pool.reserveY = _safeCast128(reserve1 - reserveDelta);
+            emit Swap(msg.sender, pool, false, amountIn, amountDelta);
         }
+        // Update price and lastBalanceX/Y
+        (_pool.lastPriceX, ) = _getPrice(
+            pool,
+            newRealBalanceX,
+            newRealBalanceY
+        );
+        // Update lastBalanceX/Y if desired to track new real reserves
+        _pool.lastBalanceX = _safeCast128(newRealBalanceX);
+        _pool.lastBalanceY = _safeCast128(newRealBalanceY);
+
+        // --------------------------------------------
+        // Return True (Swap Succeeded)
+        // --------------------------------------------
         return true;
     }
 }

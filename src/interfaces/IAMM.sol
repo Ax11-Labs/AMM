@@ -11,7 +11,7 @@ interface IAMM {
     error UNINITIALIZED();
     error INVALID_VALUE();
     error INSUFFICIENT_AMOUNT();
-    error SLIPPAGE_EXCEEDED();
+    error SWAP_ERROR();
 
     event Deposit(
         address indexed user,
@@ -25,6 +25,14 @@ interface IAMM {
         uint256 indexed pool,
         uint256 amountX,
         uint256 amountY
+    );
+
+    event Swap(
+        address indexed user,
+        uint256 indexed pool,
+        bool indexed XoutYin,
+        uint256 amountIn,
+        uint256 amountOut
     );
 
     event Approval(
